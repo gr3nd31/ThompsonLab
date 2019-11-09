@@ -154,13 +154,13 @@ sirmixaplot <- function(filo){
     cat(paste(thingee, "created."))
     for (i in 1:ncol(cells)){
       if (grepl("Mean_", names(cells)[i])){
-        cells[paste0("Integrated", names(cells)[i])] <<- cells[,i]*cells$Area
+        cells[paste0("I", names(cells)[i])] <<- cells[,i]*cells$Area
       }
     }
-    cells$Log2_dna <<- log(cells$IntegratedMean_dna, 2)
+    cells$log2_dna <<- log(cells$IMean_dna, 2)
     for (i in 1:ncol(cells)){
       if (grepl("Mean_", names(cells)[i])){
-        cells[paste0("Log", names(cells)[i])] <<- log(cells[,i], 10)
+        cells[paste0("L", names(cells)[i])] <<- log(cells[,i], 10)
       }
     }
   }
@@ -373,14 +373,14 @@ negPop_correct <- function(){
   px_background <<- mean(negPop[names(negPop)==paste0("Mean_", x)][,1])
   py_background <<- mean(negPop[names(negPop)==paste0("Mean_", y)][,1])
   if (x != "dna"){
-    cells[paste0("AdjIntegratedMean_", x)] <<- cells[paste0("IntegratedMean_", x)]-(cells$Area*px_background)
-    cells[paste0("AdjIntegratedMean_", x)] <<- cells[paste0("AdjIntegratedMean_", x)] + abs(min(cells[paste0("AdjIntegratedMean_", x)]))+1
-    cells[paste0("AdjLogIntegrated_", x)] <<- log(cells[paste0("AdjIntegratedMean_", x)], 10)
+    cells[paste0("AIMean_", x)] <<- cells[paste0("IMean_", x)]-(cells$Area*px_background)
+    cells[paste0("AIMean_", x)] <<- cells[paste0("AIMean_", x)] + abs(min(cells[paste0("AIMean_", x)]))+1
+    cells[paste0("ALIMean_", x)] <<- log(cells[paste0("AIMean_", x)], 10)
   }
   if (y != "dna"){
-    cells[paste0("AdjIntegratedMean_", y)] <<- cells[paste0("IntegratedMean_", y)]-(cells$Area*py_background)
-    cells[paste0("AdjIntegratedMean_", y)] <<- cells[paste0("AdjIntegratedMean_", y)] + abs(min(cells[paste0("AdjIntegratedMean_", y)]))+1
-    cells[paste0("AdjLogIntegrated_", y)] <<- log(cells[paste0("AdjIntegratedMean_", y)], 10)
+    cells[paste0("AIMean_", y)] <<- cells[paste0("IMean_", y)]-(cells$Area*py_background)
+    cells[paste0("AIMean_", y)] <<- cells[paste0("AIMean_", y)] + abs(min(cells[paste0("AIMean_", y)]))+1
+    cells[paste0("ALIMean_", y)] <<- log(cells[paste0("AIMean_", y)], 10)
   }
   write.csv(cells, file = thingee, row.names = FALSE)
   
@@ -432,37 +432,37 @@ normalizer <- function(){
   cat("\n")
   
   #This part calls an EdU negative popuation and creates the normalized values
-  bigBin <- which.max(density(cells$AdjLogIntegrated_edu)$y)
-  edu_neg <- density(cells$AdjLogIntegrated_edu)$x[bigBin]+1
-  edu_hist <- ggplot(cells, aes(AdjLogIntegrated_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
+  bigBin <- which.max(density(cells$ALIMean_edu)$y)
+  edu_neg <- density(cells$ALIMean_edu)$x[bigBin]+1
+  edu_hist <- ggplot(cells, aes(ALIMean_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
   print(edu_hist)
   g1_good <- readline(prompt = paste0("Is ", format(round(edu_neg, 2), nsmall = 2), " representative of the EdU cutoff? (y/n) "))
   if (g1_good == "n"){
     edu_neg = as.numeric(readline(prompt = "What value should EdU be cutoff as negative? "))
-    edu_hist <- ggplot(cells, aes(AdjLogIntegrated_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
+    edu_hist <- ggplot(cells, aes(ALIMean_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
     print(edu_hist)
   }
   cat(paste0("Using ", format(round(edu_neg, 2), nsmall = 2), " as the EdU cutoff."))
   cat("\n")
   for (i in 1:nrow(cells)){
-    if (cells$AdjLogIntegrated_edu[i] > edu_neg){
+    if (cells$ALIMean_edu[i] > edu_neg){
       cells$edu[i] <<- "Positive"
     } else {
       cells$edu[i] <<- "Negative"
     }
   }
-  eduNegCells <-subset(cells, AdjLogIntegrated_edu < edu_neg)
-  cells$edu_norm <<- (cells$AdjLogIntegrated_edu+1)-mean(eduNegCells$AdjLogIntegrated_edu)
+  eduNegCells <-subset(cells, ALIMean_edu < edu_neg)
+  cells$edu_norm <<- (cells$ALIMean_edu+1)-mean(eduNegCells$ALIMean_edu)
   
   #This part calls the 2N peak that is EdU-negative   
-  bigBin <- which.max(density(eduNegCells$Log2_dna)$y)
-  diploid <- density(eduNegCells$Log2_dna)$x[bigBin]
-  dna_hist <<- ggplot(eduNegCells, aes(Log2_dna))+geom_density()+geom_vline(xintercept = diploid)+xlab("DNA content")
+  bigBin <- which.max(density(eduNegCells$log2_dna)$y)
+  diploid <- density(eduNegCells$log2_dna)$x[bigBin]
+  dna_hist <<- ggplot(eduNegCells, aes(log2_dna))+geom_density()+geom_vline(xintercept = diploid)+xlab("DNA content")
   print(dna_hist)
   g1_good <- readline(prompt = paste0("Is ", format(round(diploid, 2), nsmall = 2), " representative of the 2N peak? (y/n) "))
   if (g1_good == "n"){
     diploid = as.numeric(readline(prompt = "What is the value of the 2N peak? "))
-    dna_hist <<- ggplot(eduNegCells, aes(Log2_dna))+geom_density()+geom_vline(xintercept = diploid)+xlab("DNA content")
+    dna_hist <<- ggplot(eduNegCells, aes(log2_dna))+geom_density()+geom_vline(xintercept = diploid)+xlab("DNA content")
     print(dna_hist)
   }
   cat(paste0("Using ", format(round(diploid, 2), nsmall = 2), " as the 2N peak value."))
@@ -470,7 +470,7 @@ normalizer <- function(){
   
   
   #This part bins each point's ploidy        
-  cells$dna_norm <<- (cells$Log2_dna+1)-diploid
+  cells$dna_norm <<- (cells$log2_dna+1)-diploid
   
   for (i in 1:nrow(cells)){
     if (cells$dna_norm[i] < 1.5) {
@@ -499,7 +499,7 @@ normalizer <- function(){
 #----------------------------------------------------------------
 #this function just makes a histogram for you (yay!)
 
-makehisto<-function(df=cells, va="Log2_dna"){
+makehisto<-function(df=cells, va="log2_dna"){
   hh<<-ggplot(df, aes(x = va))+geom_density()+
     theme_classic()+
     theme(axis.line = element_line(color = "black", size = 1.5), 
