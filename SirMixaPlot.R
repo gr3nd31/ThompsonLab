@@ -38,6 +38,9 @@ library(viridis)
 #--------------------------------------------------------------------------------------
 
 #The imaGen() script takes any number of csv files that are within your working directory and combines them. Take caution, however, as this script is designed for a particular imagej csv outpt
+#It is important that the jetData uses the Set Measurements with the following settings active:
+#   Area    Standard Deviation    Min & Max gray value    Center of Mass    Mean gray value   Perimenter    Display label
+# Additionally, for the best results, decimal places should be set to 9
 imaGen <- function(directory="./"){
   setwd(directory)
   filez <- list.files(pattern = ".csv")
