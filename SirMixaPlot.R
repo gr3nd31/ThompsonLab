@@ -19,17 +19,17 @@
 
 #Program opens required packages
 
-#If these packages aren't install, uncomment the following lines to install them. 
+#If these packages aren't install, uncomment the following lines to install them.
 
 #install.packages(ggplot2)
 #install.packages(ggpubr)
 #install.packages(MASS)
 #install.packages(viridis)
 
-library(ggplot2)
-library(ggpubr)
-library(MASS)
-library(viridis)
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggpubr))
+suppressPackageStartupMessages(library(MASS))
+suppressPackageStartupMessages(library(viridis))
 
 #------------------------------------------------------------------------------------------------------------
 
