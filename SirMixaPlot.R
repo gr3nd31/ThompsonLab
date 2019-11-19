@@ -177,8 +177,8 @@ sirmixaplot <- function(filo){
   if(TRUE %in% str_detect(names(cells), "ALIMean_.")){
     joiner(cells)
   } else{
-    gate()
     joiner(cells)
+    gate()
   }
 }
 
