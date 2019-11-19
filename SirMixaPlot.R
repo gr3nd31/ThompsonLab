@@ -21,15 +21,17 @@
 
 #If these packages aren't install, uncomment the following lines to install them.
 
-#install.packages(ggplot2)
-#install.packages(ggpubr)
-#install.packages(MASS)
-#install.packages(viridis)
+#install.packages("ggplot2")
+#install.packages("ggpubr")
+#install.packages("MASS")
+#install.packages("viridis")
+#install.packages("stringr")
 
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(ggpubr))
 suppressPackageStartupMessages(library(MASS))
 suppressPackageStartupMessages(library(viridis))
+suppressPackageStartupMessages(library(stringr))
 
 #------------------------------------------------------------------------------------------------------------
 
