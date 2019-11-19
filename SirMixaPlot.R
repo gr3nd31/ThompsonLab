@@ -171,8 +171,13 @@ sirmixaplot <- function(filo){
   #writes the file
   write.csv(cells, file = thingee, row.names = FALSE)
   
-  #Begins making the graph
-  joiner(cells)
+  #Checks that some size correctiong has occured and begins making the graph
+  if(TRUE %in% str_detect(names(cells), "ALIMean_.")){
+    joiner(cells)
+  } else{
+    gate()
+    joiner(cells)
+  }
 }
 
 #----------------------------------------------------------------------------------
