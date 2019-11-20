@@ -392,6 +392,17 @@ negPop_correct <- function(){
     cells[paste0("AIMean_", y)] <<- cells[paste0("AIMean_", y)] + abs(min(cells[paste0("AIMean_", y)]))+1
     cells[paste0("ALIMean_", y)] <<- log(cells[paste0("AIMean_", y)], 10)
   }
+  #if(grepl("CMean_", px) | grepl("CMean_", py)){
+   # if (grepl("CMean_", px)){
+  #    cells[paste0("AICMean_", x)] <<- cells[paste0("ICMean_", x)]-(cells$Area*px_background)
+  #    cells[paste0("AICMean_", x)] <<- cells[paste0("AICMean_", x)] + abs(min(cells[paste0("AIMean_", x)]))+1
+  #    cells[paste0("ALICMean_", x)] <<- log(cells[paste0("AICMean_", x)], 10)
+  #  } else if(grepl("CMean_", py)){
+  #    cells[paste0("AICMean_", y)] <<- cells[paste0("ICMean_", y)]-(cells$Area*py_background)
+  #    cells[paste0("AICMean_", y)] <<- cells[paste0("AICMean_", y)] + abs(min(cells[paste0("AIMean_", y)]))+1
+  #    cells[paste0("ALICMean_", y)] <<- log(cells[paste0("AICMean_", y)], 10)
+  #  }
+  #}
   write.csv(cells, file = thingee, row.names = FALSE)
   
   if (y == "edu" | x == "edu"){
@@ -592,6 +603,84 @@ oneAndDone <- function(){
     cat("\n")
   }
   concater()
+}
+
+#-----------------------------------------------------------------
+# So this is the compensating function in case (god forbid) you have spectral overlap. Make sure to run this having graphed the offending colors against eachother
+# IMPORTANT - The skewed color must be graphed on the y axis
+
+compensate <- function(df = cells){
+  # First it generates a datframe to hold point. This is kept open to eventaully morph this into a shape fitting gate
+  gridIron <- data.frame(X=c(1), Y=c(1))
+  cat("Thank you for choosing coompensate(). To begin, lets assign a first point. Be sure the intended line follows the overlap line:")
+  # Then you pick a point on the line of the overlapping population
+  gridIron$X[1] <- as.numeric(readline(prompt = "What is the x-value of the first point? "))
+  gridIron$Y[1] <- as.numeric(readline(prompt = "What is the x-value of the first point? "))
+  cat("\n")
+  print(qq+geom_point(data = gridIron, aes(x=gridIron$X, y=gridIron$Y, color = "red", size = 16)))
+  cat(paste0("Great, I have added that point. Now lets move on to the second point"))
+  gridIron <- rbind(gridIron, c(1, 1))
+  # Then you pick a second point
+  gridIron$X[2] <- as.numeric(readline(prompt = "What is the x-value of the second point? "))
+  gridIron$Y[2] <- as.numeric(readline(prompt = "What is the x-value of the second point? "))
+  print(qq+geom_point(data = gridIron, aes(x=gridIron$X, y=gridIron$Y, color = "red", size = 16))+
+          geom_segment(aes(x = gridIron[1,1], y = gridIron[1,2], xend = gridIron[2,1], yend = gridIron[2,2], color = "red", size=16)))
+  # Asks if these two points lie on the 
+  #print(gridIron)
+  yORn <<- readline(prompt = "Does this look right (y/n)? ")
+  if (yORn == "n"){
+    cat("Sorry, lets try that again.")
+    cat("\n")
+    compensate()
+  } else {
+    cat("Excellent, generating the linear equation now:")
+    cat("\n")
+    rise <- gridIron[2,2]-gridIron[1,2]
+    run <- gridIron[2,1]-gridIron[1,1]
+    slop <- rise/run
+    yint <- gridIron[1,2]-(gridIron[1,1]*slop)
+    print(qq+geom_point(data = gridIron, aes(x=gridIron$X, y=gridIron$Y, color = "red", size = 16))+
+            geom_abline(slope = slop, intercept = yint, size = 2, color = "blue"))
+    cat(paste0("Slope has been determined to be: ", slop))
+    cat("\n")
+    cat(paste0("Y-intercept has been determined to be: ", yint))
+    yORn <- readline(prompt = "Does this look right (y/n)? ")
+    if (yORn == "n"){
+      cat("Sorry, lets try that again.")
+      cat("\n")
+      compensate()
+    } else {
+      cat("Applying compensation.")
+      check <- df
+      check[py] <- (check[py]-yint)/(slop*check[px])
+      cat("Regraphing:")
+      joiner(check)
+      yORn <- readline(prompt = "Does this look right (y/n)? ")
+      if (yORn == "n"){
+        cat("Sorry, lets try that again.")
+        cat("\n")
+        compensate()
+      } else {
+        cells <<- check
+        cat(paste0("Cells saved with compensated ", py))
+        yORn <- readline(prompt = "Would you like to recalculate the means (y/n)? ")
+        if (yORn == "y"){
+          for (i in 1:ncol(cells)){
+            if (grepl(py, names(cells)[i])){
+              cells[paste0("I", names(cells)[i])] <<- cells[,i]*cells$Area
+            }
+          }
+          for (i in 1:ncol(cells)){
+            if (grepl(py, names(cells)[i])){
+              cells[paste0("L", names(cells)[i])] <<- log(cells[,i]+1, 10)
+            }
+          }
+          cat("Means recalculated. Thank you for your patience and patronage.")
+          write.csv(cells, thingee, row.names = FALSE)
+        }
+      }
+    }
+  }
 }
 
 #-----------------------------------------------------------------
