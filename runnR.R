@@ -167,6 +167,9 @@ oneAndDone <- function(){
     filz <- list.files()
     for (j in filz){
       lData(j)
+      pointz$redNam <<- redNam
+      pointz$greenNam <<- greenNam
+      pointz$blueNam <<- blueNam
       namen <- paste0(substring(j, 1, nchar(j)-4), "_line.tif")
       tiff(namen, res = 300, units = "in", width = 12, height = 4)
       print(linera+theme_general)
