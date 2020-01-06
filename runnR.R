@@ -1,4 +1,4 @@
-#Welcome to RunnR version 2.
+#Welcome to RunnR version 2.0 - GraphParty
 
 #This began as a theoretical package to analyze DNA fiber assays and, while it still may used for that in the future, it has been developed for cell line analyses instead
 # Use:
@@ -8,6 +8,7 @@
 # Changes from versions 1:
 #   -Added a RunnR oneAndDone() function
 #   -Pearson's correlation and significance check is performed following graph generation
+#   -Added legend to graphs (double check this, as things didn't quite line up during beta testing)
 
 # Planned projects to be updated:
 #   - Fix peak calling to automate.... everything?
@@ -27,9 +28,9 @@ lData <- function(x){
     write.table(pointz, file = x, sep = "\t")
   }
   if (dafault == FALSE){
-    redNam <<- readline(prompt = "What is the name of the red color: ")
-    greenNam <<- readline(prompt = "What is the name of the green color: ")
-    blueNam <<- readline(prompt = "What is the name of the blue color: ")
+    pointz$redNam <<- readline(prompt = "What is the name of the red color: ")
+    pointz$greenNam <<- readline(prompt = "What is the name of the green color: ")
+    pointz$blueNam <<- readline(prompt = "What is the name of the blue color: ")
   }
   lineAnalysis()
 }
@@ -46,11 +47,13 @@ savetif <- function(){
 #----------------------------------------------------------------------------------------------------------------------
 #This function graphs a line analysis for all three colors, then performs a multiple linear regression of R~B and R~G.
 lineAnalysis <- function(){
-  linera <<- ggplot()+
-    geom_step(data = pointz, aes(x=pix, y = G), color = "darkgreen", size = 1.5)+
-    geom_step(data = pointz, aes(x=pix, y = R), color = "red", size = 1.5)+
-    geom_step(data = pointz, aes(x=pix, y = B), color = "blue", size = 1.5)+
-    scale_color_manual(name = "Pixal color", values = c("red", "darkgreen", "blue"), labels = c(redNam, greenNam, blueNam))+
+  linera <<- ggplot(data = pointz, aes(x = pix))+
+    geom_step(data = pointz, aes(x=pix, y = G, colour = greenNam), size = 1.5)+
+    geom_step(data = pointz, aes(x=pix, y = R, colour = redNam), size = 1.5)+
+    geom_step(data = pointz, aes(x=pix, y = B, colour = blueNam), size = 1.5)+
+    scale_colour_manual("", 
+                       breaks = c(redNam, greenNam, blueNam),
+                       values = c("blue", "red", "darkgreen"))+
     xlab("Relative pixel position")+
     ylab("Relative pixel intentsity")+
     theme(axis.line = element_line(colour = "black", size = 2))+
