@@ -615,14 +615,14 @@ compensate <- function(df = cells){
   cat("Thank you for choosing coompensate(). To begin, lets assign a first point. Be sure the intended line follows the overlap line:")
   # Then you pick a point on the line of the overlapping population
   gridIron$X[1] <- as.numeric(readline(prompt = "What is the x-value of the first point? "))
-  gridIron$Y[1] <- as.numeric(readline(prompt = "What is the x-value of the first point? "))
+  gridIron$Y[1] <- as.numeric(readline(prompt = "What is the y-value of the first point? "))
   cat("\n")
   print(qq+geom_point(data = gridIron, aes(x=gridIron$X, y=gridIron$Y, color = "red", size = 16)))
   cat(paste0("Great, I have added that point. Now lets move on to the second point"))
   gridIron <- rbind(gridIron, c(1, 1))
   # Then you pick a second point
   gridIron$X[2] <- as.numeric(readline(prompt = "What is the x-value of the second point? "))
-  gridIron$Y[2] <- as.numeric(readline(prompt = "What is the x-value of the second point? "))
+  gridIron$Y[2] <- as.numeric(readline(prompt = "What is the y-value of the second point? "))
   print(qq+geom_point(data = gridIron, aes(x=gridIron$X, y=gridIron$Y, color = "red", size = 16))+
           geom_segment(aes(x = gridIron[1,1], y = gridIron[1,2], xend = gridIron[2,1], yend = gridIron[2,2], color = "red", size=16)))
   # Asks if these two points lie on the 
@@ -652,7 +652,7 @@ compensate <- function(df = cells){
     } else {
       cat("Applying compensation.")
       check <- df
-      check[py] <- (check[py]-yint)/(slop*check[px])
+      check[py] <- check[py]-(slop*check[px]+yint)
       cat("Regraphing:")
       joiner(check)
       yORn <- readline(prompt = "Does this look right (y/n)? ")
