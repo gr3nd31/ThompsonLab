@@ -1,19 +1,17 @@
-#SirMixaPlot version 7.0 - Electric Plot-a-loo
+#SirMixaPlot version 8.0 - Danger! High Voltage
 
 #----------------------------------------------------------------------------------------------------------
 
 #This program is designed to take a csv (comma separated values) file and generate scatterplots based on columns.
 
-#Changes from SirMixaPlot version 6.2:
-#   -Takes incoming data from imaGen()
-#   -Got rid of the savetif() since ggsave() is prebuilt into ggplot2
-#   -color_density() now works with everything automatically based on the current qq
-#   -The gate -> negPop -> normalizer cascade now works without being prompted for variables and only if EdU has been corrected
-#   -Removed show_color_names() as colors no longer matter and targets are labeled in the headers
+#Changes from SirMixaPlot version 7.0:
+#   -Takes data in from the YggData.imj macro
+#   -imaGen() is now much bigger and generates combined CSVs for nuclear vs whole cell comparisons
+
 
 
 #Things still that need to be coded:
-#   -I dunno. Think of some things
+#   -Exploratory data analses function called explore() made
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -35,7 +33,7 @@ suppressPackageStartupMessages(library(stringr))
 
 #------------------------------------------------------------------------------------------------------------
 
-#Functions for your pleasure
+# Functions for your pleasure
 
 #--------------------------------------------------------------------------------------
 
@@ -43,31 +41,180 @@ suppressPackageStartupMessages(library(stringr))
 #It is important that the jetData uses the Set Measurements with the following settings active:
 #   Area    Standard Deviation    Min & Max gray value    Center of Mass    Mean gray value   Perimenter    Display label
 # Additionally, for the best results, decimal places should be set to 9
-imaGen <- function(directory="./"){
-  setwd(directory)
-  filez <- list.files(pattern = ".csv")
-  cells <- read.table(filez[1], sep = ",", header = TRUE)
-  cat("REMEMBER: One of these csv's must be labeled 'dna'")
-  colo <- readline(prompt= paste0("What color is in ", filez[1], ": "))
-  names(cells) <- paste0(names(cells), "_", colo)
-  names(cells)[1]<-"Number"
-  names(cells)[3]<-"Area"
-  names(cells)[10]<-"Perimeter"
-  names(cells)[9]<-"Y_location"
-  names(cells)[8]<-"X_location"
-  cells<-cells[,-2]
-  cells <- cbind(cells[,1:2], cells[,7:9], cells[,3:6])
-  cells$Area <- cells$Area*100
-  for (i in filez[2:length(filez)]){
-    if (!grepl("_all", i)){
-      interim <- read.table(i, sep = ",", header = TRUE)
-      colo <- readline(prompt = paste0("What color is in ", i, ": "))
-      names(interim) <- paste0(names(interim), "_", colo)
-      cells <- cbind(cells, interim[,4:6])
+
+# If you have used the YggData macro, this will all be automatically set for you
+
+#This is the joinR function used to assign nuclear number to each ROI that may or may not be localized to the nucleus
+joinR <- function(y, x = "dna.csv"){
+  # Files are opened
+  tagger <- read.csv(x)
+  fraction <- read.csv(y)
+  # The number column is named, if not present
+  if (!"Number" %in% names(tagger)){
+    names(tagger)[1] <- "Number"
+    write.csv(tagger, file = x, row.names = FALSE)
+  }
+  if (!"Number" %in% names(fraction)){
+    names(fraction)[1] <- "Number"
+    write.csv(fraction, file = y, row.names = FALSE)
+  }
+  #Default cellid is given
+  fraction$cell <- "unknown"
+  #Default distance is given
+  tagger$distance <- 0
+  # The closest nucleus is calculated for each ROI
+  for (i in 1:nrow(fraction)){
+    tagger$distance <- sqrt((tagger$X-fraction$XM[i])^2+(tagger$Y-fraction$YM[i])^2)
+    closest <- min(tagger$distance)
+    fraction$cell[i] <- subset(tagger, distance == closest)$Number[1]
+    #If two or more nuclei are picked, it lets you know
+    if (length(closest) > 1){
+      print("PING! More than one nucleus at minimum distance. Something is wrong (probably)")
     }
   }
-  filnam <- readline(prompt = "What should the file be named: ")
-  write.csv(cells, file = paste0(filnam,"_all.csv"), row.names = FALSE)
+  write.csv(fraction, file = y, row.names = FALSE)
+}
+
+imaGen <- function(directory="./", colorz = T){
+  # The directory is set and a list of CSV's is generated
+  directoryN <- paste0(directory, "/Nuclear/")
+  directoryC <- "WholeCell/"
+  setwd(directoryN)
+  filez <- list.files(pattern = ".csv")
+  # The first file is opened to serve as a template
+  cells <- read.table(filez[1], sep = ",", header = TRUE)
+  # If the csv name is not simply the target name (colorz == F), then you will be asked to name a target for each image
+  # REMEMBER: One of the targets must be 'dna'
+  if(colorz == F){
+    cat("REMEMBER: One of these color's must be labeled 'dna'")
+    cat("\n")
+    cat(paste0("This file is ", filez[1]))
+    cat("\n")
+    colo <- readline(prompt= paste0("What color is in ", filez[1], ": "))
+  } else{
+    # Otherwise, the target is taken from the csv name
+    colo <- substr(filez[1], 1, nchar(filez[1])-4)
+  }
+  cells$Area <- cells$Area*100
+  names(cells) <- paste0(names(cells), "_NUC_", colo)
+  # The first column with designated as the cell number which is dictated by the nucleus and is consistent across all downstream applications
+  names(cells)[1] <- "Number"
+  # The label is removed as this isn't required after 'colo' labeling
+  cells<-cells[,-2]
+  # Default area is quite small, so its boosted to make the numbers more "real"
+  # The rest of the csv's in the Nuclear directory are opened and cbinded to the first set
+  for (i in filez[2:length(filez)]){
+    # Already bound csv's (_all tagged) are ignored
+    if (!grepl("_all", i)){
+      interim <- read.table(i, sep = ",", header = TRUE)
+      if(colorz == F){
+        cat("REMEMBER: One of these color's must be labeled 'dna'")
+        cat("/n")
+        cat(paste0("This file is ", i))
+        cat("/n")
+        colo <- readline(prompt= paste0("What color is in ", i, ": "))
+      } else{
+        colo <- substr(i, 1, nchar(i)-4)
+      }
+      names(interim) <- paste0(names(interim), "_NUC_", colo)
+      cells <- cbind(cells, interim[,4:8], interim[,11:12], interim[,15:16])
+    }
+  }
+  filnam <- readline(prompt = "What should the base file be named: ")
+  write.csv(cells, file = paste0(filnam,"_NUC_all.csv"), row.names = FALSE)
+  setwd("../")
+  
+  #Now that the nuclear data is collected, the whole data will be combined
+  
+  # First, you navigate to the wholeCell folder
+  setwd(directoryC)
+  # Then you get the list of files
+  filez <- list.files()
+  # Then you designate which tagger file to use. If colorz == T, the script assumes your file is called dna.csv and uses the same csv as found in the Nuclear folder
+  if(colorz==F){
+    pathy <- getwd()
+    cat(paste0("Current directory is ", pathy))
+    cat("\n")
+    tagger <- readline(prompt = "What is the path to the dna file: ")
+  } else{
+    tagger <- "../Nuclear/dna.csv"
+  }
+  # Every ROI is designated a nucleus number
+  for (i in filez){
+    joinR(i, tagger)
+  }
+  # The tagger file is opened
+  cells <- read.csv(tagger)
+  # Default area is quite small, so its boosted to make the numbers more "real"
+  cells$Area <- cells$Area*100
+  # The dna values are labeled as such
+  names(cells) <- paste0(names(cells), "_WC_dna")
+  # The first column with designated as the cell number which is dictated by the nucleus and is consistent across all downstream applications
+  names(cells)[1] <- "Number"
+  # The label is removed as this isn't required after 'colo' labeling
+  cells<-cells[,-2]
+  #Each ROI file is summarized and added to the nucleus data
+  for (i in filez){
+    if(colorz == F){
+      cat("REMEMBER: One of these color's must be labeled 'dna'")
+      cat("\n")
+      cat(paste0("This file is ", i))
+      cat("\n")
+      colo <- readline(prompt= paste0("What color is in ", i, ": "))
+    } else{
+      colo <- substr(i, 1, nchar(i)-4)
+    }
+    # Temporary dataset is made for easy column labeling
+    interim <- cells
+    # The ROI files is opened
+    fraction <- read.csv(i)
+    for (j in 1:nrow(fraction)){
+      cellP <- subset(interim, Number == fraction$cell[j])
+      fraction$NucDist[j] <- sqrt((fraction$XM[j] - mean(cellP$X_WC_dna))^2 + (fraction$YM[j] - mean(cellP$Y_WC_dna))^2)
+    }
+    write.csv(fraction, file = i, row.names = F)
+    #Each nucleus number is analyzed for ROI's designated to it
+    for (j in 1:nrow(interim)){
+      interim$ROI_Num[j] <- 0
+      interim$ROI_Area[j] <- "NA"
+      interim$ROI_Mean[j] <- "NA"
+      interim$ROI_Stdev[j] <- "NA"
+      interim$ROI_Mode[j] <- "NA"
+      interim$ROI_Perimeter[j] <- "NA"
+      interim$ROI_IntDens[j] <- "NA"
+      interim$ROI_IntTotal[j] <- "NA"
+      interim$ROI_NucDist[j] <- "NA"
+      if(interim$Number[j] %in% unique(fraction$cell)){
+        # The ROIs that are assigned to a particular nucleus number are subsetted
+        hitz <- subset(fraction, cell == interim$Number[j])
+        # Individual ROI nuclear distances are calculated
+        interim$ROI_Num[j] <- nrow(hitz)
+        interim$ROI_Area[j] <- mean(hitz$Area)*100
+        interim$ROI_Mean[j] <- mean(hitz$Mean)
+        interim$ROI_Stdev[j] <- mean(hitz$StdDev)
+        interim$ROI_Mode[j] <- mean(hitz$Mode)
+        interim$ROI_Perimeter[j] <- mean(hitz$Perim.)
+        interim$ROI_IntDens[j] <- mean(hitz$IntDen)*100
+        interim$ROI_IntTotal[j] <- sum(hitz$IntDen)*100
+        interim$ROI_NucDist[j] <- mean(hitz$NucDist)
+      } 
+    }
+    # A target tag is added for later identification
+    names(interim) <- paste0(names(interim), "_", colo)
+    # The new variables are added to their cell ID
+    cells <- cbind(cells, interim[,(ncol(cells)+1):ncol(interim)])
+  }
+  #filnam <- readline(prompt = "What should the whole cell file be named: ")
+  write.csv(cells, file = paste0(filnam, "_WC_all.csv"), row.names = F)
+  setwd("../")
+  
+  #Now that we have a nuclear dataset and a WC dataset, we might as well put it all together...
+  nucka <- paste0("Nuclear/", filnam, "_NUC_all.csv")
+  nuke <- read.csv(nucka)
+  wucka <- paste0("WholeCell/", filnam, "_WC_all.csv")
+  wuke <- read.csv(wucka)
+  cells <- cbind(nuke, wuke[,22:ncol(wuke)])
+  write.csv(cells, file = paste0(filnam, "_WN_all.csv"), row.names = F)
 }
 
 #--------------------------------------------------------------------------------------
@@ -162,7 +309,7 @@ sirmixaplot <- function(filo){
         cells[paste0("I", names(cells)[i])] <<- cells[,i]*cells$Area
       }
     }
-    cells$log2_dna <<- log(cells$IMean_dna, 2)
+    cells$log2_dna <<- log(cells$IntDen_NUC_dna, 2)
     for (i in 1:ncol(cells)){
       if (grepl("Mean_", names(cells)[i])){
         cells[paste0("L", names(cells)[i])] <<- log(cells[,i], 10)
@@ -253,7 +400,7 @@ modthequad <<- function(df=cells){
 #This function will remove certain points from the cells dataframe.
 
 cull <- function(){
-  print(colnames(cells))
+  print(sort(names(cells)))
   para <<- readline(prompt = "Which parameter should be culled: ")
   bORs <<- readline(prompt = "Data with values (b)igger, (s)maller, or (=) to the target: ")
   vale <<- readline(prompt = "What is the target value: ")
@@ -360,15 +507,12 @@ gate <- function(df=cells, gateName="negPop"){
   xSet <- c(x1, x2)
   ySet <- c(y1, y2)
   
-  #gates<<-append(gates, gateName)
-  
   workaround<<- subset(df, as.numeric(get(px)) > as.numeric(xSet[1]) & as.numeric(get(px)) < as.numeric(xSet[2]))
   workaround <<- subset(workaround, as.numeric(get(py)) > as.numeric(ySet[1]) & as.numeric(get(py)) < as.numeric(ySet[2]))
   assign(gateName, workaround, envir = .GlobalEnv)
   
   cells$gatePop<<-cells$Number %in% workaround$Number
   
-  #grapho(workaround)
   if(gateName == "negPop"){
     negPop_correct()
   } else{
@@ -378,8 +522,10 @@ gate <- function(df=cells, gateName="negPop"){
 
 #This function uses a true negative population to adjust the background
 negPop_correct <- function(){
-  x <- strsplit(px, "_")[[1]][2]
-  y <- strsplit(py, "_")[[1]][2]
+  x <<- strsplit(px, "_")
+  x <- paste0(x[[1]][length(x[[1]])-1], "_", x[[1]][length(x[[1]])])
+  y <- strsplit(py, "_")
+  y <- paste0(y[[1]][length(y[[1]])-1], "_", y[[1]][length(y[[1]])])
   px_background <<- mean(negPop[names(negPop)==paste0("Mean_", x)][,1])
   py_background <<- mean(negPop[names(negPop)==paste0("Mean_", y)][,1])
   if (x != "dna"){
@@ -392,20 +538,8 @@ negPop_correct <- function(){
     cells[paste0("AIMean_", y)] <<- cells[paste0("AIMean_", y)] + abs(min(cells[paste0("AIMean_", y)]))+1
     cells[paste0("ALIMean_", y)] <<- log(cells[paste0("AIMean_", y)], 10)
   }
-  #if(grepl("CMean_", px) | grepl("CMean_", py)){
-   # if (grepl("CMean_", px)){
-  #    cells[paste0("AICMean_", x)] <<- cells[paste0("ICMean_", x)]-(cells$Area*px_background)
-  #    cells[paste0("AICMean_", x)] <<- cells[paste0("AICMean_", x)] + abs(min(cells[paste0("AIMean_", x)]))+1
-  #    cells[paste0("ALICMean_", x)] <<- log(cells[paste0("AICMean_", x)], 10)
-  #  } else if(grepl("CMean_", py)){
-  #    cells[paste0("AICMean_", y)] <<- cells[paste0("ICMean_", y)]-(cells$Area*py_background)
-  #    cells[paste0("AICMean_", y)] <<- cells[paste0("AICMean_", y)] + abs(min(cells[paste0("AIMean_", y)]))+1
-  #    cells[paste0("ALICMean_", y)] <<- log(cells[paste0("AICMean_", y)], 10)
-  #  }
-  #}
   write.csv(cells, file = thingee, row.names = FALSE)
-  
-  if (y == "edu" | x == "edu"){
+  if (y == "NUC_edu" | x == "NUC_edu"){
     normalizer()
   }
 }
@@ -453,27 +587,27 @@ normalizer <- function(){
   cat("\n")
   
   #This part calls an EdU negative popuation and creates the normalized values
-  bigBin <- which.max(density(cells$ALIMean_edu)$y)
-  edu_neg <- density(cells$ALIMean_edu)$x[bigBin]+1
-  edu_hist <- ggplot(cells, aes(ALIMean_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
+  bigBin <- which.max(density(cells$ALIMean_NUC_edu)$y)
+  edu_neg <- density(cells$ALIMean_NUC_edu)$x[bigBin]+1
+  edu_hist <- ggplot(cells, aes(ALIMean_NUC_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
   print(edu_hist)
   g1_good <- readline(prompt = paste0("Is ", format(round(edu_neg, 2), nsmall = 2), " representative of the EdU cutoff? (y/n) "))
   if (g1_good == "n"){
     edu_neg = as.numeric(readline(prompt = "What value should EdU be cutoff as negative? "))
-    edu_hist <- ggplot(cells, aes(ALIMean_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
+    edu_hist <- ggplot(cells, aes(ALIMean_NUC_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
     print(edu_hist)
   }
   cat(paste0("Using ", format(round(edu_neg, 2), nsmall = 2), " as the EdU cutoff."))
   cat("\n")
   for (i in 1:nrow(cells)){
-    if (cells$ALIMean_edu[i] > edu_neg){
+    if (cells$ALIMean_NUC_edu[i] > edu_neg){
       cells$edu[i] <<- "Positive"
     } else {
       cells$edu[i] <<- "Negative"
     }
   }
-  eduNegCells <-subset(cells, ALIMean_edu < edu_neg)
-  cells$edu_norm <<- (cells$ALIMean_edu+1)-mean(eduNegCells$ALIMean_edu)
+  eduNegCells <-subset(cells, ALIMean_NUC_edu < edu_neg)
+  cells$edu_norm <<- (cells$ALIMean_NUC_edu+1)-mean(eduNegCells$ALIMean_NUC_edu)
   
   #This part calls the 2N peak that is EdU-negative   
   bigBin <- which.max(density(eduNegCells$log2_dna)$y)
