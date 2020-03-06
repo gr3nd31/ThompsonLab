@@ -1,17 +1,24 @@
-#SirMixaPlot version 8.0 - Danger! High Voltage
+#SirMixaPlot version 8.2 - Danger! High Voltage
 
 #----------------------------------------------------------------------------------------------------------
 
 #This program is designed to take a csv (comma separated values) file and generate scatterplots based on columns.
+# Changes from version 8.1:
+#   -Changed the defualt EdU neg setting on normalizer()
+#   -Added a work-around for concater() should rbinding fail due to missing columns
+#   -imaGen() now also creates a concatanated csv of all the ROIs in the WholeCell folder with the _ROI_ tag
+#   -Added runPCA() function to take a dataframe and generate a PCA biplot; still in beta testing
+
+#Changes from SirMixaPlot version 8.0:
+#   -Added some comments and typos
+#   -Added the reMap() function for re-creating a facsimile of the original image
 
 #Changes from SirMixaPlot version 7.0:
 #   -Takes data in from the YggData.imj macro
 #   -imaGen() is now much bigger and generates combined CSVs for nuclear vs whole cell comparisons
 
-
-
 #Things still that need to be coded:
-#   -Exploratory data analses function called explore() made
+#   -Exploratory data analyses function called explore() made
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -24,12 +31,14 @@
 #install.packages("MASS")
 #install.packages("viridis")
 #install.packages("stringr")
+#devtools::install_github("vqv/ggbiplot")
 
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(ggpubr))
 suppressPackageStartupMessages(library(MASS))
 suppressPackageStartupMessages(library(viridis))
 suppressPackageStartupMessages(library(stringr))
+#suppressPackageStartupMessages(library(ggbioplot))
 
 #------------------------------------------------------------------------------------------------------------
 
@@ -122,6 +131,7 @@ imaGen <- function(directory="./", colorz = T){
   }
   filnam <- readline(prompt = "What should the base file be named: ")
   write.csv(cells, file = paste0(filnam,"_NUC_all.csv"), row.names = FALSE)
+  xoo <- list.files(pattern = "dna")
   setwd("../")
   
   #Now that the nuclear data is collected, the whole data will be combined
@@ -137,11 +147,11 @@ imaGen <- function(directory="./", colorz = T){
     cat("\n")
     tagger <- readline(prompt = "What is the path to the dna file: ")
   } else{
-    tagger <- "../Nuclear/dna.csv"
+    tagger <- paste0("../Nuclear/", xoo)
   }
   # Every ROI is designated a nucleus number
   for (i in filez){
-    joinR(i, tagger)
+    joinR(i, xoo)
   }
   # The tagger file is opened
   cells <- read.csv(tagger)
@@ -176,26 +186,44 @@ imaGen <- function(directory="./", colorz = T){
     #Each nucleus number is analyzed for ROI's designated to it
     for (j in 1:nrow(interim)){
       interim$ROI_Num[j] <- 0
-      interim$ROI_Area[j] <- "NA"
-      interim$ROI_Mean[j] <- "NA"
-      interim$ROI_Stdev[j] <- "NA"
-      interim$ROI_Mode[j] <- "NA"
-      interim$ROI_Perimeter[j] <- "NA"
-      interim$ROI_IntDens[j] <- "NA"
-      interim$ROI_IntTotal[j] <- "NA"
-      interim$ROI_NucDist[j] <- "NA"
+      interim$ROI_Area[j] <- 0
+      interim$ROI_Mean[j] <- 0
+      interim$ROI_Stdev[j] <- 0
+      interim$ROI_Mode[j] <- 0
+      interim$ROI_Perimeter[j] <- 0
+      interim$ROI_IntDens[j] <- 0
+      interim$ROI_IntTotal[j] <- 0
+      interim$ROI_NucDist[j] <- 0
       if(interim$Number[j] %in% unique(fraction$cell)){
         # The ROIs that are assigned to a particular nucleus number are subsetted
         hitz <- subset(fraction, cell == interim$Number[j])
+        
         # Individual ROI nuclear distances are calculated
+        #The number of ROIS assigned to that cell
         interim$ROI_Num[j] <- nrow(hitz)
+        
+        #The average average of all the ROIs
         interim$ROI_Area[j] <- mean(hitz$Area)*100
+        
+        #The average Mean intensity of all the ROIs
         interim$ROI_Mean[j] <- mean(hitz$Mean)
+        
+        #The average standard deviation of all the ROIs
         interim$ROI_Stdev[j] <- mean(hitz$StdDev)
+        
+        #The average mode of pixel intensities of all the ROIs
         interim$ROI_Mode[j] <- mean(hitz$Mode)
+        
+        #The average perimeter of all the ROIs
         interim$ROI_Perimeter[j] <- mean(hitz$Perim.)
+        
+        #The average integrated mean/density of the ROIs
         interim$ROI_IntDens[j] <- mean(hitz$IntDen)*100
+        
+        #The total of the integrated means/densities of all the ROIs
         interim$ROI_IntTotal[j] <- sum(hitz$IntDen)*100
+        
+        #The average distance from the nucleus of all the ROIs
         interim$ROI_NucDist[j] <- mean(hitz$NucDist)
       } 
     }
@@ -205,6 +233,26 @@ imaGen <- function(directory="./", colorz = T){
     cells <- cbind(cells, interim[,(ncol(cells)+1):ncol(interim)])
   }
   #filnam <- readline(prompt = "What should the whole cell file be named: ")
+  interim <- read.csv(filez[1])
+  colo <- substr(filez[1], 1, nchar(i)-4)
+  interim$roi <- colo
+  for (i in filez[2:length(filez)]){
+    x <- read.csv(i)
+    colo <- substr(i, 1, nchar(i)-4)
+    for (j in names(interim)){
+      if (!j %in% names(x)){
+        x[j] <- "NA"
+      }
+    }
+    for (j in names(x)){
+      if (!j %in% names(interim)){
+        interim[j] <- "NA"
+      }
+    }
+    x$roi <- colo
+    interim <- rbind(interim, x)
+  }
+  write.csv(interim, file = paste0(filnam, "_ROI_all.csv"), row.names = F)
   write.csv(cells, file = paste0(filnam, "_WC_all.csv"), row.names = F)
   setwd("../")
   
@@ -244,7 +292,7 @@ joiner <- function(df=cells){
 }
 
 #grapho() actually makes the scatter plots
-grapho <- function(df=cells){
+grapho <- function(df=cells, X=px, Y=py, Xn = xname,  Yn=yname){
   
   #backup dataframe is generated
   interim <<- cells
@@ -253,13 +301,13 @@ grapho <- function(df=cells){
   cat("\n")
   
   #Initial scatter plot is generated
-  qq<<-ggplot(data=df, aes_string(px, py))+
+  qq<<-ggplot(data=df, aes_string(X, Y))+
     theme_linedraw()+
     theme(plot.title = element_text(size=40, face="bold"))+
     theme(axis.title = element_text(size=30, face="bold"))+
     geom_point(size=2)+
-    scale_x_continuous(name=xname)+
-    scale_y_continuous(name=yname)+
+    scale_x_continuous(name=Xn)+
+    scale_y_continuous(name=Yn)+
     theme(axis.text = element_text(face='bold', size=16), axis.ticks = element_blank())
   
   if(newAxis == TRUE){
@@ -273,7 +321,7 @@ grapho <- function(df=cells){
 
   cat("Call 'modthequad(df)' to apply quadrant analysis")
   cat("\n")
-  cat("Call 'cull()' to remove certain populations from original dataset (DANGER, but less than before")
+  cat("Call 'cull()' to remove certain populations from original dataset (DANGER, but less than before)")
   cat("\n")
   cat("Call 'eGod(df)' to apply ergodic analysis of S phase cells")
   cat("\n")
@@ -588,7 +636,7 @@ normalizer <- function(){
   
   #This part calls an EdU negative popuation and creates the normalized values
   bigBin <- which.max(density(cells$ALIMean_NUC_edu)$y)
-  edu_neg <- density(cells$ALIMean_NUC_edu)$x[bigBin]+1
+  edu_neg <- density(cells$ALIMean_NUC_edu)$x[bigBin]+0.5
   edu_hist <- ggplot(cells, aes(ALIMean_NUC_edu))+geom_density()+geom_vline(xintercept = edu_neg)+xlab("Log EdU")
   print(edu_hist)
   g1_good <- readline(prompt = paste0("Is ", format(round(edu_neg, 2), nsmall = 2), " representative of the EdU cutoff? (y/n) "))
@@ -655,7 +703,7 @@ normalizer <- function(){
 #this function just makes a histogram for you (yay!)
 
 makehisto<-function(df=cells, va="log2_dna"){
-  hh<<-ggplot(df, aes(x = va))+geom_density()+
+  hh<<-ggplot(df, aes(x = df[va]))+geom_density()+
     theme_classic()+
     theme(axis.line = element_line(color = "black", size = 1.5), 
           axis.ticks = element_line(color = "black", size = 1.5), 
@@ -702,12 +750,22 @@ concater <- function(){
   if (ruSure == "y"){
     setwd("./finished")
     path <- getwd()
-    lister_cells <- dir(path, pattern = "_cells.csv")
+    lister_cells <- dir(path, pattern = "all.csv")
     whole <- read.csv(lister_cells[1])
     whole$file <- lister_cells[1]
     for (i in lister_cells[2:length(lister_cells)]){
       parrt <- read.csv(i)
       parrt$file <- i
+      for (j in names(whole)){
+        if (!j %in% names(parrt)){
+          parrt[j] <- "NA"
+        }
+      }
+      for (j in names(parrt)){
+        if (!j %in% names(whole)){
+          whole[j] <- "NA"
+        }
+      }
       whole <- rbind(parrt, whole)
     } 
     cat("Done!")
@@ -722,18 +780,31 @@ concater <- function(){
   }
 }
 
-oneAndDone <- function(){
-  path <- getwd()
-  lister <- dir(path, pattern = ".csv")
-  dir.create(path = paste0(path, "/finished"))
-  for (i in 1:length(lister)){
-    sirmixaplot(lister[i])
-    print(lister[i])
-    cells$infect <<- readline(prompt = "Infection: ")
-    cells$cellType <<- readline(prompt = "Cell type: ")
+# oneAndDone() can be performed in a parent direcroty containing subdirectories that each contain 1 or more  all.csv tagged files
+oneAndDone <- function(directory = "./"){
+  setwd(directory)
+  dirs <- list.files()
+  dirs <- dirs[1:length(dirs)]
+  dir.create(path = "./finished")
+  for (j in dirs){
+    setwd(j)
+    path <- getwd()
+    lister <- dir(path, pattern = "all.csv")
+    sirmixaplot(lister[1])
+    print(lister[1])
+    
+    #Alter/comment these lines to add identifier information for the parent directory
+    cells$infect <<- readline(prompt = "What is the infection type of this file: ")
+    cells$knockdown <<- readline(prompt = "What is the knockdown type of this file: ")
+    cells$treatment <<- readline(prompt = "What is the treatment type of this file: ")
+    cells$bacteria <<- readline(prompt = "What is the bacteria type of this file: ")
+    cells$time <<- readline(prompt = "What is the timepoint of this file: ")
+    
+    setwd("../finished")
     write.csv(cells, file = thingee, row.names = FALSE)
-    file.rename(from = paste0(substr(thingee, 1, nchar(thingee)-10), ".csv"), to = paste0(path, "/finished/", paste0(substr(thingee, 1, nchar(thingee)-10), ".csv")))
-    file.rename(from = paste0(substr(thingee, 1, nchar(thingee)-10), "_cells.csv"), to = paste0(path, "/finished/", paste0(substr(thingee, 1, nchar(thingee)-10), "_cells.csv")))
+    setwd("../")
+    #file.rename(from = paste0(substr(thingee, 1, nchar(thingee)-10), ".csv"), to = paste0("finished/", paste0(substr(thingee, 1, nchar(thingee)-10), ".csv")))
+    #file.rename(from = paste0(substr(thingee, 1, nchar(thingee)-10), "_cells.csv"), to = paste0(path, "/", paste0(substr(thingee, 1, nchar(thingee)-10), "_cells.csv")))
     cat("\n")
   }
   concater()
@@ -788,7 +859,7 @@ compensate <- function(df = cells){
       check <- df
       check[py] <- check[py]-(slop*check[px]+yint)
       cat("Regraphing:")
-      joiner(check)
+      grapho(check)
       yORn <- readline(prompt = "Does this look right (y/n)? ")
       if (yORn == "n"){
         cat("Sorry, lets try that again.")
@@ -815,6 +886,147 @@ compensate <- function(df = cells){
       }
     }
   }
+}
+
+#------------------------------------------------------
+
+# This function take the nuclear locations and sizes and re-maps the original image
+#   df is the dataframe, defaulted to 'cells'
+reMap <- function(df = cells, 
+                  #   highlight is a vector containing the Number(s) to be highlighted in remapped image
+                  highlight = F, 
+                  #   X and Y refer to the beginning of the X and Y position names in the dataframe, defaulted to the nuclear geometric position
+                  X = "X_NUC_", 
+                  Y = "Y_NUC_", 
+                  #   S is the size of the ROI, defaulted to nucelar size
+                  S = "Area_NUC_", 
+                  #   Xn and Yn are the axis names and don't really need to be changed
+                  Xn = "X position", 
+                  Yn = "Y position",
+                  #   colz is a vector of colors to use for the highlights variable. Be sure to have enough colors for the number of populations in the highlights variable
+                  colz = cb_black) {
+  #These set the variable names using regex to anchor tot he front of the variable name
+  X <- names(df)[str_detect(names(df), paste0("^",X))]
+  Y <- names(df)[str_detect(names(df), paste0("^",Y))]
+  S <- names(df)[str_detect(names(df), paste0("^",S))]
+  #This creates a ggplot object for graphing
+  test <- ggplot(data = df, aes(y = unlist(df[X]), x = unlist(df[Y]), size = unlist(df[S])))
+  #If the highlight variable is a vector and is not F, its graphed here
+  if (is.vector(highlight) & highlight != F) {
+    #print(1)
+    check <- df
+    check$highlight <- check$Number %in% highlight
+    qq <<- test+geom_point(aes(color = check$highlight))+
+      ylab(Yn)+
+      xlab(Xn)+
+      scale_color_manual(values = colz)+
+      theme_classic()+
+      theme(axis.text = element_text(face='bold', size=16), axis.ticks = element_blank())+
+      theme(plot.title = element_text(size=40, face="bold"))+
+      theme(axis.title = element_text(size=30, face="bold"))
+  } 
+  # If highlight is a not a vector (such as variable called) and isn't F, then its graphed
+  else if (length(highlight) != 1 & highlight != F){
+    #print(2)
+    qq <<- test+geom_point(aes(color = highlight))+
+      ylab(Yn)+
+      xlab(Xn)+
+      theme_classic()+
+      theme(axis.text = element_text(face='bold', size=16), axis.ticks = element_blank())+
+      theme(plot.title = element_text(size=40, face="bold"))+
+      theme(axis.title = element_text(size=30, face="bold"))+
+      scale_color_manual(values = colz)
+  }
+  # Finally, if highlight IS FALSE, then its graphed without a color option
+  else {
+    #print(3)
+    qq <<- test+geom_point()+
+      ylab(Yn)+
+      xlab(Xn)+
+      theme_classic()+
+      theme(axis.text = element_text(face='bold', size=16), axis.ticks = element_blank())+
+      theme(plot.title = element_text(size=40, face="bold"))+
+      theme(axis.title = element_text(size=30, face="bold"))
+  }
+  #The plot is graphed
+  print(qq)
+}
+
+#-----------------------------------------------------------------
+# Beta run of PCA function
+
+runPCA <- function(df=cells, 
+                   choicez = c(1,2), 
+                   subz = F, 
+                   groupz = F, 
+                   circz=F,
+                   axe=F,
+                   elly=F){  
+  
+  # get rid of non-numerics
+  num <- unlist(lapply(df, is.numeric))
+  cellist <- df[ , num]
+  
+  # Get rid of columns with no variance
+  x <- foo(cellist)
+  cellist <- cellist[,-x]
+  
+  # Get rid of NAs and Infs
+  cellist[is.na(cellist)] <- 0
+  cellist[cellist == Inf] <- 0
+  cellist[cellist == -Inf] <- 0 
+  
+  # Get only the nuclear columns & remove NA
+  if (subz != F){
+    cellist <- cellist[str_detect(names(cellist), subz) | str_detect(names(cellist), "Number")]
+  }
+  
+  # Make the pca object
+  cell.pca <<- prcomp(cellist, center = TRUE, scale = TRUE)
+
+  #Report how much of the data is shown
+  howManyLeft <- round((nrow(cellist)*ncol(cellist))/(nrow(df)*ncol(df))*100, digits = 1)
+  cat(paste0("Around ", howManyLeft, "% of the data is represented after trimming."))
+  cat("\n")
+  
+  # Make the biplot
+  if (groupz ==  T){
+    elly <- T
+    print(names(cellist))
+    grope <- readline(prompt = "What should the PCA be grouped by from the 'cellist' dataframe: ")
+    n <- which(colnames(cellist)==grope)
+    #if (is.character(cellist[grope])){
+    #  cat("Converting group to numeric")
+    #  cellist[grope] <- as.list(cellist[grope])
+    #}
+    pp <<- ggbiplot(cell.pca,
+                    ellipse = elly, 
+                    choices = choicez, 
+                    var.axes = axe, 
+                    circle = circz, 
+                    groups = as.factor(cellist[,n]))+
+      #geom_density_2d(aes(color = cellist[grope]))+
+      theme_classic2()
+  } else {
+    pp <<- ggbiplot(cell.pca, 
+                    ellipse = elly, 
+                    choices = choicez, 
+                    var.axes = axe, 
+                    circle = circz)+
+    geom_density_2d()+
+    theme_classic2()
+  }
+  if (elly == F){
+    print(pp)
+  } else {
+    print(pp)
+  }
+}
+
+foo <- function(dat) {
+  out <- lapply(dat, function(x) length(unique(x)))
+  want <- which(!out > 1)
+  unlist(want)
 }
 
 #-----------------------------------------------------------------
