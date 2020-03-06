@@ -12,7 +12,6 @@ run("Set Measurements...", "area mean standard modal min centroid center perimet
 roi_image = File.openDialog("Choose a File");
 input=getDirectory("current");
 list=getFileList(input);
-
 // The DNA image is opened, coverted to 8-bit and thresholded.
 //	If the default threshold needs to be overwriten, comment out the setAutoThreshold() and uncomment the run("Threshold") and setThreshold() lines accordingly
 open(roi_image);
@@ -25,10 +24,10 @@ run("Convert to Mask");
 
 //The ROIs are rounded and split
 // If you are running a high magnification (>10x) DNA image, it is recommended that you comment this out to avoid nuclear image fragementation
-run("Watershed");
+//run("Watershed");
 
 //The ROIs are generated
-run("Analyze Particles...", "size=100-Infinity pixel exclude add");
+run("Analyze Particles...", "size=.08-Infinity exclude add");
 //The image is closed
 close();
 // Then a Nuclear and WholeCell directory is made, if not already present
@@ -66,13 +65,13 @@ for (i=0; i<list.length; i++){
 		// Change this for deviations from default
 		setAutoThreshold("Default dark");
 		//run("Threshold...");
-		setThreshold(10, 255);
+		setThreshold(15, 255);
 		setOption("BlackBackground", false);
 		run("Convert to Mask");
 		// If you are running a high magnification (>10x) DNA image, it is recommended that you comment this out to avoid nuclear image fragementation
-		//run("Watershed");
+		run("Watershed");
 		// Alter this for different ROI sizes
-		run("Analyze Particles...", "size=100-Infinity pixel exclude add");
+		run("Analyze Particles...", "size=.008-Infinity add");
 		//saveAs("Tiff", input+replace(list[i], ".tif", "_labeled.tif"));
 		//selectWindow("Results");
 		//run("Close");
