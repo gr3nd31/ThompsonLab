@@ -1041,7 +1041,6 @@ foo <- function(dat) {
 #nearest neighbor function for determining the nearest cell from one population to any cell of another population
 
 nearestNeighbor <- function(home=cells, target=cells, label="CellToCell"){
-  print(label)
   cells[paste0("nearest_",label)] <<- "NotHome"
   cells[paste0("nearest_",label,"_distance")] <<- 0
   for (i in 1:nrow(cells)){
