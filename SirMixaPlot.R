@@ -71,16 +71,19 @@ joinR <- function(y, x = "dna.csv"){
   fraction$cell <- "unknown"
   #Default distance is given
   tagger$distance <- 0
+  fraction$NucDist <- 0
   # The closest nucleus is calculated for each ROI
   for (i in 1:nrow(fraction)){
-    tagger$distance <- sqrt((tagger$X-fraction$XM[i])^2+(tagger$Y-fraction$YM[i])^2)
+    tagger$distance <- sqrt((tagger$X-fraction$X[i])^2+(tagger$Y-fraction$Y[i])^2)
     closest <- min(tagger$distance)
-    fraction$cell[i] <- subset(tagger, distance == closest)$Number[1]
+    fraction$NucDist[i] <- closest
+    fraction$cell[i] <- unique(subset(tagger, distance == closest)$Number)
     #If two or more nuclei are picked, it lets you know
     if (length(closest) > 1){
       print("PING! More than one nucleus at minimum distance. Something is wrong (probably)")
     }
   }
+  #check <<- tagger
   write.csv(fraction, file = y, row.names = FALSE)
 }
 
@@ -150,8 +153,8 @@ imaGen <- function(directory="./", colorz = T){
     tagger <- paste0("../Nuclear/", xoo)
   }
   # Every ROI is designated a nucleus number
-  for (i in filez){
-    joinR(i, xoo)
+  for (j in filez){
+    joinR(j, xoo)
   }
   # The tagger file is opened
   cells <- read.csv(tagger)
@@ -178,10 +181,7 @@ imaGen <- function(directory="./", colorz = T){
     interim <- cells
     # The ROI files is opened
     fraction <- read.csv(i)
-    for (j in 1:nrow(fraction)){
-      cellP <- subset(interim, Number == fraction$cell[j])
-      fraction$NucDist[j] <- sqrt((fraction$XM[j] - mean(cellP$X_WC_dna))^2 + (fraction$YM[j] - mean(cellP$Y_WC_dna))^2)
-    }
+
     write.csv(fraction, file = i, row.names = F)
     #Each nucleus number is analyzed for ROI's designated to it
     for (j in 1:nrow(interim)){
@@ -218,10 +218,10 @@ imaGen <- function(directory="./", colorz = T){
         interim$ROI_Perimeter[j] <- mean(hitz$Perim.)
         
         #The average integrated mean/density of the ROIs
-        interim$ROI_IntDens[j] <- mean(hitz$IntDen)*100
+        interim$ROI_IntDens[j] <- mean(hitz$RawIntDen)
         
         #The total of the integrated means/densities of all the ROIs
-        interim$ROI_IntTotal[j] <- sum(hitz$IntDen)*100
+        interim$ROI_IntTotal[j] <- sum(hitz$RawIntDen)
         
         #The average distance from the nucleus of all the ROIs
         interim$ROI_NucDist[j] <- mean(hitz$NucDist)
@@ -234,7 +234,9 @@ imaGen <- function(directory="./", colorz = T){
   }
   #filnam <- readline(prompt = "What should the whole cell file be named: ")
   interim <- read.csv(filez[1])
-  colo <- substr(filez[1], 1, nchar(i)-4)
+  #print(filez[1])
+  colo <- substr(filez[1], 1, nchar(i)-2)
+  #print(colo)
   interim$roi <- colo
   for (i in filez[2:length(filez)]){
     x <- read.csv(i)
@@ -756,7 +758,7 @@ concater <- function(){
   if (ruSure == "y"){
     setwd("./finished")
     path <- getwd()
-    lister_cells <- dir(path, pattern = "all.csv")
+    lister_cells <- dir(path, pattern = "all_cells.csv")
     whole <- read.csv(lister_cells[1])
     whole$file <- lister_cells[1]
     for (i in lister_cells[2:length(lister_cells)]){
@@ -764,12 +766,12 @@ concater <- function(){
       parrt$file <- i
       for (j in names(whole)){
         if (!j %in% names(parrt)){
-          parrt[j] <- "NA"
+          parrt[j] <- 0
         }
       }
       for (j in names(parrt)){
         if (!j %in% names(whole)){
-          whole[j] <- "NA"
+          whole[j] <- 0
         }
       }
       whole <- rbind(parrt, whole)
@@ -777,7 +779,7 @@ concater <- function(){
     cat("Done!")
     cat("\n")
     fileName <- readline(prompt = "What would you like the filename to be: ")
-    fileName <- paste0(fileName, ".csv")
+    fileName <- paste0(fileName, "_all_cells.csv")
     write.csv(whole, file = fileName, row.names = FALSE)
     whole <<- read.csv(fileName)
     cat(paste("Saved as", fileName))
@@ -902,8 +904,8 @@ reMap <- function(df = cells,
                   #   highlight is a vector containing the Number(s) to be highlighted in remapped image
                   highlight = F, 
                   #   X and Y refer to the beginning of the X and Y position names in the dataframe, defaulted to the nuclear geometric position
-                  X = "X_NUC_", 
-                  Y = "Y_NUC_", 
+                  Y = "X_NUC_", 
+                  X = "Y_NUC_", 
                   #   S is the size of the ROI, defaulted to nucelar size
                   S = "Area_NUC_", 
                   #   Xn and Yn are the axis names and don't really need to be changed
@@ -916,7 +918,7 @@ reMap <- function(df = cells,
   Y <- names(df)[str_detect(names(df), paste0("^",Y))]
   S <- names(df)[str_detect(names(df), paste0("^",S))]
   #This creates a ggplot object for graphing
-  test <- ggplot(data = df, aes(y = unlist(df[X]), x = unlist(df[Y]), size = unlist(df[S])))
+  test <- ggplot(data = df, aes(y = -unlist(df[X]), x = unlist(df[Y]), size = unlist(df[S])))
   #If the highlight variable is a vector and is not F, its graphed here
   if (is.vector(highlight) & highlight != F) {
     #print(1)
@@ -1045,7 +1047,7 @@ nearestNeighbor <- function(home=cells, target=cells, label="CellToCell"){
   for (i in 1:nrow(cells)){
     if(cells$Number[i] %in% unique(home$Number)){
       pool <- subset(target, Number != cells$Number[i])
-      pool$distance <- sqrt((pool$X_location-cells$X_location[i])**2+(pool$Y_location-cells$Y_location[i])**2)
+      pool$distance <- sqrt((pool$X_NUC_dna-cells$X_NUC_dna[i])**2+(pool$Y_NUC_dna-cells$Y_NUC_dna[i])**2)
       cells[paste0("nearest_",label)][i,] <<- subset(pool, distance == min(pool$distance))$Number[1]
       cells[paste0("nearest_",label, "_distance")][i,] <<- subset(pool, distance == min(pool$distance))$distance[1]
     }

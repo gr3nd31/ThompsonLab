@@ -35,7 +35,7 @@ for (j=0; j < dlist.length; j++){
 	run("Watershed");
 
 //The ROIs are generated
-	run("Analyze Particles...", "size=10-Infinity pixel exclude add");
+	run("Analyze Particles...", "size=10-Infinity pixel add");
 //The image is closed
 	close();
 // Then a Nuclear and WholeCell directory is made, if not already present
@@ -57,6 +57,7 @@ for (j=0; j < dlist.length; j++){
 			run("Close");
 			roiManager("measure");
 			saveAs("Results", inputn+replace(list[i], ".tif", ".csv"));
+			run("Clear Results");
 			selectWindow("Results");
 			run("Close");
 			close();
@@ -84,25 +85,25 @@ for (j=0; j < dlist.length; j++){
 				setOption("BlackBackground", false);
 				run("Convert to Mask");
 				run("Watershed");
-				run("Analyze Particles...", "size=10-Infinity pixel add");
+				run("Analyze Particles...", "size=10-Infinity pixel include add");
 			} else if (startsWith(list[i], "n")){
 				setThreshold(25, 255);
 				setOption("BlackBackground", false);
 				run("Convert to Mask");
 				run("Watershed");
-				run("Analyze Particles...", "size=1-Infinity pixel add");
+				run("Analyze Particles...", "size=1-Infinity pixel include add");
 			} else if (startsWith(list[i], "edu")){
 				setThreshold(20, 255);
 				setOption("BlackBackground", false);
 				run("Convert to Mask");
 				run("Watershed");
-				run("Analyze Particles...", "size=1-Infinity pixel add");
+				run("Analyze Particles...", "size=1-Infinity pixel include add");
 			} else {
 				setAutoThreshold("Default dark");
 				setOption("BlackBackground", false);
 				run("Convert to Mask");
 				run("Watershed");
-				run("Analyze Particles...", "size=1-Infinity pixel add");
+				run("Analyze Particles...", "size=1-Infinity pixel include add");
 			}
 			close();
 			open(inputp+list[i]);
@@ -112,6 +113,7 @@ for (j=0; j < dlist.length; j++){
 			roiManager("measure");
 			saveAs("Results", inputc+replace(list[i], ".tif", ".csv"));
 			//selectWindow("Results");
+			run("Clear Results");
 			run("Close");
 			roiManager("reset")
 			if (nImages>0) {
