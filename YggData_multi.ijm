@@ -97,9 +97,18 @@ for (j=0; j < dlist.length; j++){
 				run("Convert to Mask");
 				run("Watershed");
 				run("Analyze Particles...", "size=1-Infinity pixel add");
+			} else {
+				setAutoThreshold("Default dark");
+				setOption("BlackBackground", false);
+				run("Convert to Mask");
+				run("Watershed");
+				run("Analyze Particles...", "size=1-Infinity pixel add");
 			}
 			close();
 			open(inputp+list[i]);
+			run("RGB Color");
+			selectWindow(list[i]);
+			run("Close");
 			roiManager("measure");
 			saveAs("Results", inputc+replace(list[i], ".tif", ".csv"));
 			//selectWindow("Results");

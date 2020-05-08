@@ -335,7 +335,7 @@ grapho <- function(df=cells, X=px, Y=py, Xn = xname,  Yn=yname){
 
 #----------------------------------------------------------------
 
-sirmixaplot <- function(filo){
+sirmixaplot <- function(filo, run=TRUE, adjust=TRUE){
   #The script, m'lord
   
   #This is the beginning of the readline prompts for the program. User inputs desired output conditionals. Also, certain columns are added for safety...
@@ -369,11 +369,13 @@ sirmixaplot <- function(filo){
   write.csv(cells, file = thingee, row.names = FALSE)
   
   #Checks that some size correctiong has occured and begins making the graph
-  if(TRUE %in% str_detect(names(cells), "ALIMean_.")){
-    joiner(cells)
-  } else{
-    joiner(cells)
-    gate()
+  if(run==TRUE){
+    if(TRUE %in% str_detect(names(cells), "ALIMean_.")){
+      joiner(cells)
+    } else if(adjust==TRUE){
+      joiner(cells)
+      gate()
+    }
   }
 }
 
@@ -422,10 +424,12 @@ countR <<- function(vecky, df){
   quads <<- data.frame(quad, PercentTotal)
 }
 
-modthequad <<- function(df=cells){
+modthequad <<- function(df=cells, reMap=F, graphit=T){
   quadrant <<- c()
-  xi<<-readline(prompt = "What is the x-intercept: ")
-  yi<<-readline(prompt = "What is the y-intercept: ")
+  if (reMap == F){
+    xi<<-readline(prompt = "What is the x-intercept: ")
+    yi<<-readline(prompt = "What is the y-intercept: ")
+  }
   quadrify(df)
   fu <<- data.frame(lr, ud)
   quadricate(fu)
@@ -439,7 +443,9 @@ modthequad <<- function(df=cells){
     annotate("text", x = xmin, y = ymin, label = paste0("Q3: ", as.character(format(round((qt3/todos*100), 2), nsmall = 2)), "%"))+
     annotate("text", x = xmax, y = ymin, label = paste0("Q4: ", as.character(format(round((qt4/todos*100), 2), nsmall = 2)), "%"))
   print(quads)
-  print(qqmod+geom_density_2d())
+  if(graphit==T){
+    print(qqmod+geom_density_2d())
+  }
   cat("\n")
   cat("call 'qqmod' to see plot with quadrants.")
 }
@@ -1027,6 +1033,23 @@ foo <- function(dat) {
   out <- lapply(dat, function(x) length(unique(x)))
   want <- which(!out > 1)
   unlist(want)
+}
+
+#-----------------------------------------------------------------
+#nearest neighbor function for determining the nearest cell from one population to any cell of another population
+
+nearestNeighbor <- function(home=cells, target=cells, label="CellToCell"){
+  print(label)
+  cells[paste0("nearest_",label)] <<- "NotHome"
+  cells[paste0("nearest_",label,"_distance")] <<- 0
+  for (i in 1:nrow(cells)){
+    if(cells$Number[i] %in% unique(home$Number)){
+      pool <- subset(target, Number != cells$Number[i])
+      pool$distance <- sqrt((pool$X_location-cells$X_location[i])**2+(pool$Y_location-cells$Y_location[i])**2)
+      cells[paste0("nearest_",label)][i,] <<- subset(pool, distance == min(pool$distance))$Number[1]
+      cells[paste0("nearest_",label, "_distance")][i,] <<- subset(pool, distance == min(pool$distance))$distance[1]
+    }
+  }
 }
 
 #-----------------------------------------------------------------
