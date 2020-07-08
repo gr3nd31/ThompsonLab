@@ -7,5 +7,6 @@ This repository contains the various scripts used in the Thompson lab. Currently
   3) **jetData.ijm** - Fiji ImageJ macro for extracted ROI information across any number of channel pictures for SirMixaPlotv7
   4) **joinR** - contains an altered jetData.ijm that will generally extract ROI data without a pre-determined ROI. This folder also contains the R script joinR, which will use a 'nearest neighbor' approach to assign each ROI to a specific cell number (**No longer supported**)
   5) **RunnR** - Current version 2.0 (GraphParty). RunnR is an R package for graphing and analyzing line analyses
+  6) **Purgo.R** - Current version 1.0. Purgo is an R script to automatically compensate for spectral overlap in microscopy images and generate new images without that overlap.
   
 For version specific changes/program use, consult the annotation within each script
