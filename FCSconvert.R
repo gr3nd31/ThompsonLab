@@ -1,6 +1,6 @@
 FCSconvert <- function(dirFCS = "./",
-                      limit = F,
-                      concat = T){
+                       limit = F,
+                       concat = T){
   if(!require('flowCore')) {install.packages('flowCore')}
   setwd(dirFCS)
   fiList <- list.files(pattern = ".fcs")
@@ -17,6 +17,12 @@ FCSconvert <- function(dirFCS = "./",
       if(!exists("cells")){
         cells <- interim
       } else{
+        for(i in names(cells)[!names(cells) %in% names(interim)]){
+          interim[i] <- 0
+        }
+        for(i in names(interim)[!names(interim) %in% names(cells)]){
+          cells[i] <- 0
+        }
         cells <- rbind(cells, interim)
       }
       write.csv(cells, "all_cells.csv", row.names = F)
