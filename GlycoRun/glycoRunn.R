@@ -1,11 +1,24 @@
 library(ggpubr)
 
-glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
-                     outputCSV = "allData.csv",
-                     corrections = T,
-                     peakCSV = "csv/allData.csv",
-                     givenThreshold = F) {
+glycoRun <- function(
+  # Ladder values
+  ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
+  # Output file name
+  outputCSV = "allData.csv",
+  # Correct for background variation along the gel
+  corrections = T,
+  # Location of the peak data
+  peakCSV = "csv/allData.csv",
+  # Numerical threshold for peak calling
+  givenThreshold = F,
+  # The number of iterations attempted to get the ladder right before it gives up
+  ladderAttempts = 10,
+  # If the ladder attempts max out, should the peaks called be assumed as the upper or lower portion of the given ladder sizes?
+  upperOrLowerLadder = "lower") {
+  
+  #Lists all the files in the main folder
   currentSetup <- list.files()
+  # If 'figures', 'bands', or 'csv' aren't present, these directories get made
   if(!"figures" %in% currentSetup){
     dir.create("figures")
     pngList <- list.files(pattern = ".png")
@@ -20,21 +33,31 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
     dir.create("csv")
   }
   
+  # If the corrections option is TRUE and the ladder file is present, the data gets corrected
   correctionsCheck <- list.files()
+  # First the ladder gets corrected
   if (corrections == T & "ladder.csv" %in% correctionsCheck){
+    # The csv's are listed
     cList <- list.files(pattern = ".csv")
+    # The csvs are read into a dataframe
     px <- read.csv("ladder.csv")
-    #file.rename("ladder.csv", "csv/ladder.csv")
+    # The dataframe is given a name and type on ladder
+    # For non-ladder samples, these are taken from the file name: 'name'_'type'.csv
     px$name <- "Ladder"
     px$type <- "Ladder"
+    # Dataframe names are changed
     names(px)[1] <- "position"
     names(px)[2] <- "value"
     
+    # An initial linear relationship is determined and the slope and intercepts are gathered
     sampleLine <- lm(value~position, data = px)
     intercept <- sampleLine[1]$coefficients[1]
     slope <- sampleLine[1]$coefficients[2]
+    # The value at each position is adjusted by the initial linear regression
     px$adjValue <- px$value-(slope*px$position+intercept)
     
+    # The adjusted values are used to generate a new regression
+    # So long as the slope is above above 0.001, this process is iterated
     while (abs(slope) > 0.001){
       #dSample <- px[sample(nrow(px), nrow(px)/10),]
       sampleLine <- lm(adjValue~position, data = px)
@@ -43,41 +66,45 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
       px$adjValue <- px$adjValue-(slope*px$position+intercept)
     }
     
+    # The same process is done with the other csv files
     for (a in cList){
       if(a != "ladder.csv" & a != outputCSV){
         mName <- strsplit(a, "_")[[1]][1]
         mType <- strsplit(strsplit(a, "_")[[1]][2], ".csv")[[1]][1]
-        
         interim <- read.csv(a)
         interim$name <- mName
         interim$type <- mType
         names(interim)[1] <- "position"
         names(interim)[2] <- "value"
-        
-        #file.rename(a, paste0("csv/", a))
-        
-        #dSample <- px[sample(nrow(px), nrow(px)/10),]
         sampleLine <- lm(value~position, data = interim)
         intercept <- sampleLine[1]$coefficients[1]
         slope <- sampleLine[1]$coefficients[2]
         interim$adjValue <- interim$value-(slope*interim$position+intercept)
-        
         while (abs(slope) > 0.001){
-          #dSample <- px[sample(nrow(px), nrow(px)/10),]
           sampleLine <- lm(adjValue~position, data = interim)
           intercept <- sampleLine[1]$coefficients[1]
           slope <- sampleLine[1]$coefficients[2]
           interim$adjValue <- interim$adjValue-(slope*interim$position+intercept)
         }
+        # The dataframes are combined into a single dataframe
         px <- rbind(px, interim)
       }
     }
+    # The dataframe is saved as the output file
     write.csv(px, paste0("csv/", outputCSV), row.names = F)
+    # A seperate 'tag' ID is generated to make iterating through name/type subsets easier
+    # This is not saved into any final csv
     px$tag <- paste0(px$name, "_", px$type)
     
+    # Now we make some initial graphs
+    # First, we iterate through the names, which will have both 'types' of data in them
     for(a in unique(px$name)){
+      # This makes sure we don't pull ladder data
       if (a != "Ladder"){
+        # Only that name data is selected as an interim file
         interim <- subset(px, name == a | name == "Ladder")
+        # A ggplot object is created using the interim data
+        # This will be a line overlay between the types of data coom and glyco
         draft <- ggplot(data = interim, aes(
           x = position,
           y = adjValue,
@@ -88,15 +115,16 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
           theme(legend.position = "top")+
           facet_wrap(~name, nrow = 2)
         print(draft)
+        # The graph is saved
         ggsave(paste0("figures/",a, ".pdf"))
         
+        # Now a correlation scatter plot is generated and saved
         interim <- subset(px, name == a)
         coom <- subset(interim, type == "coom")
         glyco <- subset(interim, type != "coom")
         interim <- data.frame("PositionFromTop" = coom$position)
         interim$coom <- coom$adjValue
         interim$glyco <- glyco$adjValue
-        
         draft <- ggplot(data = interim, aes(
           x = coom,
           y = glyco,
@@ -110,11 +138,15 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
         print(draft)
         ggsave(paste0("figures/",a, "_signalCorr.pdf"))
         
+        # Now we generate a glycosylation signal score by subtracting the glyco score from the coomassie score
         interim$coom <- interim$coom+abs(min(interim$coom))
         interim$glyco <- interim$glyco+abs(min(interim$glyco))
         interim$relGylcoSignal <- interim$glyco-interim$coom
-       # interim$relGylcoSignal <- log((interim$relGylcoSignal+abs(min(interim$relGylcoSignal))+0.1),2)
+        interim$relGylcoSignal <- interim$relGylcoSignal+abs(min(interim$relGylcoSignal))
+        # And now we'll normalize it by lower quartile normalization because why not?
+        interim$relGylcoSignal <- interim$relGylcoSignal/quantile(interim$relGylcoSignal)[2]
         
+        #Now we make the super cool heat map histograms using the newly calculated diagrams
         ladder <- subset(px, name == "Ladder")
         interim$ladder <- ladder$adjValue+abs(min(ladder$adjValue))
         draft <- ggplot(data = interim, aes(
@@ -138,27 +170,35 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
       }
     }
   } else {
+    # If the correction parameter FALSE, then the data is assumed corrected and opened from its save location for peak calling
     px <- read.csv(peakCSV)
+    # The temp tag IDs are given for peak calling iteration
     px$tag <- paste0(px$name, "_", px$type)
   }
 
+  #Peaks are called in the various tag ID sets
   for (a in unique(px$tag)){
+    # interim file based on tag ID is generated
     tagSet <- subset(px, tag == a)
     print(paste0("Calling peaks on ", a))
+    # If the interim set is from the ladder, a special peak calling is done
     if (a == "Ladder_Ladder"){
       peakCaller(df = tagSet, dfName = "ladder", 
                  threshold = F,
                  expectedPeaks = T,
                  expectedNumber = length(ladderValues),
-                 ladder = ladderValues)
+                 ladder = ladderValues,
+                 attemptsForPeaks = ladderAttempts, 
+                 ladderUpOrDown = upperOrLowerLadder)
       
-      # Uses the bands on the ladder to calculate kD based on position
+      # Uses the bands on the ladder to calculate kD based on position but this doesn't really work... great
+      # In the future, linear regression should be done between points, but this is... okay
       ladderBands <- read.csv("bands/ladder.csv")
       ladderEq <- lm(size~position, data = ladderBands)
       intercept <- ladderEq$coefficients[1]
       slope <- ladderEq$coefficients[2]
       
-      # Draws a QC plot of the regession model
+      # Draws a QC plot of the regression model
       draft <- ggplot(data = ladderBands, aes(
         x = position,
         y = size
@@ -166,6 +206,7 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
         geom_smooth(method = "lm",)+
         theme_classic()
       print(draft)
+      # Saves the QC plot
       ggsave("figures/ladderQC.pdf")
       
       # Saves the size data of the whole dataset
@@ -173,17 +214,23 @@ glycoRun <- function(ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
       write.csv(px, peakCSV, row.names = F)
       
     } else {
+      # Peak calling is done on the data based on the entered parameters
       peakCaller(df = tagSet, 
                  dfName = a, 
                  threshold = givenThreshold,
                  expectedPeaks = F,
-                 expectedNumber = 10,
+                 expectedNumber = length(ladderValues),
                  ladder = ladderValues)
+      # peaks are read in from the peak calling program
       peakBands <- read.csv(paste0("bands/", a, ".csv"))
+      # peak sizes are calculated
       peakBands$size <- peakBands$position*slope+intercept
+      # New file with developed
       write.csv(peakBands, paste0("bands/", a, ".csv"), row.names = F)
     }
   }
+  
+  # Now peaks are assinged between the coomassie and glycosylation data
   print("Combining called peaks by name...")
   banderSnatch()
   
@@ -206,7 +253,9 @@ peakCaller <- function(df = px,
                        threshold = 0,
                        expectedPeaks = F,
                        expectedNumber = 9,
-                       ladder){
+                       ladder,
+                       attemptsForPeaks=10,
+                       ladderUpOrDown = "lower"){
   peaks <- df
   if(threshold != F){
     print(paste0("Threshold given of ", threshold, "."))
@@ -239,22 +288,35 @@ peakCaller <- function(df = px,
       }
       
       if (max(peaks$band) != expectedNumber){
+        counter <- 1
         print("Incorrect peaks found. Exploring other thresholds...")
-        while (max(peaks$band != expectedNumber)){
+        while (max(peaks$band) != expectedNumber){
           if (max(peaks$band) > expectedNumber){
-            threshold <- threshold+0.5
+            threshold <- threshold+1
           } else {
-            threshold <- threshold-0.5
+            threshold <- threshold-1
           }
+          print(paste0("Setting threshold at ", round(threshold, 2)))
           peaks <- holder
           peaks <- subset(peaks, adjValue > threshold)
-          
           bandNumber <- 1
+          peaks$band <- bandNumber
           for(a in 2:nrow(peaks)){
             if (peaks[a,]$position != peaks[a-1,]$position+1){
               bandNumber <- bandNumber+1
             }
             peaks[a,]$band <- bandNumber
+          }
+          print(paste0("Found ", bandNumber, " bands"))
+          print(paste0("Expected: ", expectedNumber))
+          if(bandNumber==expectedNumber){
+            break
+          }
+          counter <- counter+1
+          if (counter > attemptsForPeaks){
+            print("Max number of attempts reached...")
+            print(paste0("Using ", bandNumber, " bands set for the ", ladderUpOrDown, " set of bands."))
+            break
           }
         }
       }
@@ -313,7 +375,15 @@ peakCaller <- function(df = px,
     
   }
   if (dfName == "ladder"){
+    
     bands$size <- 0
+    if (bandNumber != length(ladder)){
+      if (ladderUpOrDown == "lower"){
+        ladder <- ladder[(1+length(ladder)-nrow(bands)):length(ladder)]
+      } else {
+        ladder <- ladder[1:length(bands)]
+      }
+    }
     for (a in 1:length(ladder)){
       bands[bands$bandID == a,]$size <- ladder[a]
     }
