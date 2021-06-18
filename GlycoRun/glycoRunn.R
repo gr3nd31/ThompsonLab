@@ -378,6 +378,9 @@ peakCaller <- function(df = px,
     
     bands$size <- 0
     if (bandNumber != length(ladder)){
+      if (bandNumber > length(ladder)){
+        bands <- bands[1:length(ladder),]
+      }
       if (ladderUpOrDown == "lower"){
         ladder <- ladder[(1+length(ladder)-nrow(bands)):length(ladder)]
       } else {
