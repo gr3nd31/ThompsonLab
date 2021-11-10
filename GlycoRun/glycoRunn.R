@@ -1,8 +1,18 @@
 library(ggpubr)
 
 glycoRun <- function(
-  # Ladder values
-  ladderValues = c(250, 150, 100, 70, 50, 37, 25, 20, 15),
+  # Whole protein gel profile ladder file
+  ladderWP = "ladder.csv",
+  # Glycosylation protein gel profile ladder file
+  ladderGP = "ladder.csv",
+  # Whole protein profile ladder values
+  ladderValuesWP = c(250, 150, 100, 75, 50, 37, 25, 20, 15, 10),
+  # Glycolsyation ladder values
+  ladderValuesGP = c(75, 25),
+  # Whole protein gel profile file
+  wp = "wp.csv",
+  # Glycosylation gel profile file
+  gp = "gp.csv",
   # Output file name
   outputCSV = "allData.csv",
   # Correct for background variation along the gel
@@ -36,65 +46,119 @@ glycoRun <- function(
   # If the corrections option is TRUE and the ladder file is present, the data gets corrected
   correctionsCheck <- list.files()
   # First the ladder gets corrected
-  if (corrections == T & "ladder.csv" %in% correctionsCheck){
+  if (corrections == T & ladderWP %in% correctionsCheck){
     # The csv's are listed
     cList <- list.files(pattern = ".csv")
     # The csvs are read into a dataframe
-    px <- read.csv("ladder.csv")
+    pxWP <- read.csv(ladderWP)
     # The dataframe is given a name and type on ladder
     # For non-ladder samples, these are taken from the file name: 'name'_'type'.csv
-    px$name <- "Ladder"
-    px$type <- "Ladder"
+    pxWP$name <- "Ladder"
+    pxWP$type <- "Ladder"
     # Dataframe names are changed
-    names(px)[1] <- "position"
-    names(px)[2] <- "value"
+    names(pxWP)[1] <- "position"
+    names(pxWP)[2] <- "value"
     
     # An initial linear relationship is determined and the slope and intercepts are gathered
-    sampleLine <- lm(value~position, data = px)
+    sampleLine <- lm(value~position, data = pxWP)
     intercept <- sampleLine[1]$coefficients[1]
     slope <- sampleLine[1]$coefficients[2]
     # The value at each position is adjusted by the initial linear regression
-    px$adjValue <- px$value-(slope*px$position+intercept)
+    pxWP$adjValue <- pxWP$value-(slope*pxWP$position+intercept)
     
     # The adjusted values are used to generate a new regression
     # So long as the slope is above above 0.001, this process is iterated
     while (abs(slope) > 0.001){
-      #dSample <- px[sample(nrow(px), nrow(px)/10),]
-      sampleLine <- lm(adjValue~position, data = px)
+      sampleLine <- lm(adjValue~position, data = pxWP)
       intercept <- sampleLine[1]$coefficients[1]
       slope <- sampleLine[1]$coefficients[2]
-      px$adjValue <- px$adjValue-(slope*px$position+intercept)
-    }
+      pxWP$adjValue <- pxWP$adjValue-(slope*pxWP$position+intercept)
+    } 
     
-    # The same process is done with the other csv files
-    for (a in cList){
-      if(a != "ladder.csv" & a != outputCSV){
-        mName <- strsplit(a, "_")[[1]][1]
-        mType <- strsplit(strsplit(a, "_")[[1]][2], ".csv")[[1]][1]
-        interim <- read.csv(a)
-        interim$name <- mName
-        interim$type <- mType
-        names(interim)[1] <- "position"
-        names(interim)[2] <- "value"
-        sampleLine <- lm(value~position, data = interim)
+    if (ladderGP != ladderWP){
+      pxGP <- read.csv(ladderGP)
+      # The dataframe is given a name and type on ladder
+      # For non-ladder samples, these are taken from the file name: 'name'_'type'.csv
+      pxGP$name <- "Ladder"
+      pxGP$type <- "Ladder"
+      # Dataframe names are changed
+      names(pxGP)[1] <- "position"
+      names(pxGP)[2] <- "value"
+      
+      # An initial linear relationship is determined and the slope and intercepts are gathered
+      sampleLine <- lm(value~position, data = pxGP)
+      intercept <- sampleLine[1]$coefficients[1]
+      slope <- sampleLine[1]$coefficients[2]
+      # The value at each position is adjusted by the initial linear regression
+      pxGP$adjValue <- pxGP$value-(slope*pxGP$position+intercept)
+      
+      # The adjusted values are used to generate a new regression
+      # So long as the slope is above above 0.001, this process is iterated
+      while (abs(slope) > 0.001){
+        sampleLine <- lm(adjValue~position, data = pxGP)
         intercept <- sampleLine[1]$coefficients[1]
         slope <- sampleLine[1]$coefficients[2]
-        interim$adjValue <- interim$value-(slope*interim$position+intercept)
-        while (abs(slope) > 0.001){
-          sampleLine <- lm(adjValue~position, data = interim)
-          intercept <- sampleLine[1]$coefficients[1]
-          slope <- sampleLine[1]$coefficients[2]
-          interim$adjValue <- interim$adjValue-(slope*interim$position+intercept)
-        }
-        # The dataframes are combined into a single dataframe
-        px <- rbind(px, interim)
+        pxGP$adjValue <- pxGP$adjValue-(slope*pxGP$position+intercept)
       }
+    } else {
+      pxGP <- pxWP
     }
+
+    # The same process is done with the other csv files
+    # First the WP gel
+    mName <- strsplit(wp, "_")[[1]][1]
+    interim <- read.csv(wp)
+    interim$name <- mName
+    interim$type <- "Whole Protein"
+    names(interim)[1] <- "position"
+    names(interim)[2] <- "value"
+    sampleLine <- lm(value~position, data = interim)
+    intercept <- sampleLine[1]$coefficients[1]
+    slope <- sampleLine[1]$coefficients[2]
+    interim$adjValue <- interim$value-(slope*interim$position+intercept)
+    while (abs(slope) > 0.001){
+      sampleLine <- lm(adjValue~position, data = interim)
+      intercept <- sampleLine[1]$coefficients[1]
+      slope <- sampleLine[1]$coefficients[2]
+      interim$adjValue <- interim$adjValue-(slope*interim$position+intercept)
+    }
+    pxWP <- rbind(pxWP, interim)
+    
+    # Then the GP gel
+    mName <- strsplit(gp, "_")[[1]][1]
+    interim <- read.csv(gp)
+    interim$name <- mName
+    interim$type <- "Gylcosylated Protein"
+    names(interim)[1] <- "position"
+    names(interim)[2] <- "value"
+    sampleLine <- lm(value~position, data = interim)
+    intercept <- sampleLine[1]$coefficients[1]
+    slope <- sampleLine[1]$coefficients[2]
+    interim$adjValue <- interim$value-(slope*interim$position+intercept)
+    while (abs(slope) > 0.001){
+      sampleLine <- lm(adjValue~position, data = interim)
+      intercept <- sampleLine[1]$coefficients[1]
+      slope <- sampleLine[1]$coefficients[2]
+      interim$adjValue <- interim$adjValue-(slope*interim$position+intercept)
+    }
+    if (ladderWP == ladderGP){
+      pxGP <- rbind(pxWP, interim)
+      tick <- "Good"
+    } else {
+      pxGP <- rbind(pxGP, interim)
+      tick <- "Bad"
+    }
+
     # The dataframe is saved as the output file
-    write.csv(px, paste0("csv/", outputCSV), row.names = F)
+    write.csv(pxWP, paste0("csv/WP_", outputCSV), row.names = F)
+    write.csv(pxGP, paste0("csv/GP_", outputCSV), row.names = F)
     # A seperate 'tag' ID is generated to make iterating through name/type subsets easier
     # This is not saved into any final csv
     px$tag <- paste0(px$name, "_", px$type)
+    
+    if (tick == "bad"){
+      
+    }
     
     # Now we make some initial graphs
     # First, we iterate through the names, which will have both 'types' of data in them
